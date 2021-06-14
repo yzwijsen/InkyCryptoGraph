@@ -2,6 +2,7 @@ from inky import InkyPHAT
 from PIL import Image, ImageFont, ImageDraw
 from font_fredoka_one import FredokaOne
 import time
+from datetime import datetime
 import requests
 
 def GetPlotPoint(time,value):
@@ -109,6 +110,13 @@ draw.text((110, 82), "L: " + str(minValue), inky_display.BLACK, fontMedium)
 
 # Draw graph time range
 draw.text((padding, inky_display.HEIGHT / 2 + padding), str(priceHistoryInDays) + "D", inky_display.WHITE, fontSmall)
+
+# Draw current datetime
+now = datetime.now()
+dt_string = now.strftime("%d/%m/%Y %H:%M")
+w, h = fontSmall.getsize(dt_string)
+x = (inky_display.WIDTH) - w - padding
+draw.text((x, 0), dt_string, inky_display.RED, fontSmall)
 
 # Push image to screen
 inky_display.set_image(img)
