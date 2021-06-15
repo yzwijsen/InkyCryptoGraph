@@ -5,28 +5,44 @@ import time
 from datetime import datetime
 import requests
 
-def GetPlotPoint(time,value):
-        plotPointX = int(round(((time - minTime) * deltaScreenX / deltaTime + graphBounds[0][0] + padding)))
-        plotPointY = int(round(((value - minValue) * deltaScreenY / deltaValue + graphBounds[0][1] + padding)))
-
-        # flip the Y value since InkyPHAT screen height is inverted
-        plotPointY = graphBounds[1][1] - plotPointY + graphBounds[0][1]
-
-        return (plotPointX,plotPointY)
-
 # Config
 graphBounds = [(0,52),(106,104)] # This defines the bounds for the graph // default: [(0,0),(212,104)]
 padding = 5
 priceHistoryInDays = 1
+TickerPair = "XBTEUR"
+CurrencySymbol = "€"
+
+
+def GetPlotPoint(time,value):
+    plotPointX = int(round(((time - minTime) * deltaScreenX / deltaTime + graphBounds[0][0] + padding)))
+    plotPointY = int(round(((value - minValue) * deltaScreenY / deltaValue + graphBounds[0][1] + padding)))
+
+    # flip the Y value since InkyPHAT screen height is inverted
+    plotPointY = graphBounds[1][1] - plotPointY + graphBounds[0][1]
+
+    return (plotPointX,plotPointY)
+
+def formatPrice(amount):
+    amount = float(amount)
+    # Round price and convert to string
+    amount = str(int(round(amount)))
+
+    # Add space
+    spaceIndex = len(amount) - 3
+    amount = amount[:spaceIndex] + " " + amount[spaceIndex:]
+
+    # Add currency symbol
+    amount = CurrencySymbol + " " + amount
+
+    return amount
+
 
 # Get Current Price
-response = requests.get("https://api.kraken.com/0/public/Ticker?pair=XBTEUR")
+url = "https://api.kraken.com/0/public/Ticker?pair=" + TickerPair
+response = requests.get(url)
 currPrice = response.json()["result"]["XXBTZEUR"]["c"][0]
-tmpPrice = float(currPrice)
-tmpPrice = int(round(tmpPrice))
-currPrice = str(tmpPrice)
-spaceIndex = len(currPrice) - 3
-currPrice = currPrice[:spaceIndex] + " " + currPrice[spaceIndex:]
+
+currPrice = formatPrice(currPrice)
 
 # Calculate timestamp for API call
 ts = time.time()
@@ -42,8 +58,6 @@ rawData = []
 
 for price in prices:
     rawData.append((int(price[0]),float(price[2]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
-
-#rawData = [(1200,5000),(1350,6000),(1400,8000),(1550,3000),(1600,4500),(1700,4250),(1810,7000),(1890,6000),(1950,5500),(2000,5000)]
 
 # Set minmax variables to some initial value from the dataset so we have something to compare to
 minTime = rawData[0][0]
@@ -86,7 +100,7 @@ message = "btc"
 draw.text((padding, 0), message, inky_display.RED, fontSmall)
 
 # Draw current price
-message = "€ " + currPrice
+message = currPrice
 w, h = fontLarge.getsize(message)
 x = (inky_display.WIDTH / 2) - (w / 2)
 y = (inky_display.HEIGHT / 4) - (h / 2)
@@ -105,8 +119,8 @@ for i in rawData:
 
 # Draw details rectangle
 draw.rectangle((106,52,212,104), inky_display.WHITE, inky_display.BLACK)
-draw.text((110, 52), "H: " + str(maxValue), inky_display.BLACK, fontMedium)
-draw.text((110, 82), "L: " + str(minValue), inky_display.BLACK, fontMedium)
+draw.text((110, 52), "H: " + formatPrice(maxValue), inky_display.BLACK, fontMedium)
+draw.text((110, 82), "L: " + formatPrice(minValue), inky_display.BLACK, fontMedium)
 
 # Draw graph time range
 draw.text((padding, inky_display.HEIGHT / 2 + padding), str(priceHistoryInDays) + "D", inky_display.WHITE, fontSmall)
