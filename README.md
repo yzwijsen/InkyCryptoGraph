@@ -1,2 +1,5 @@
 # InkyCryptoGraph
-Crypto ticker and graph for the Pimoroni InkyPHAT display
+Crypto / Bitcoin ticker and graph for the Pimoroni InkyPHAT display
+
+
+![Example picture](https://i.imgur.com/gexNUaU.jpeg)
