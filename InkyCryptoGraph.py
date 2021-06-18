@@ -6,23 +6,24 @@ from datetime import datetime
 import requests
 
 # Config
-graphBounds = [(0,52),(106,104)] # This defines the bounds for the graph // default: [(0,0),(212,104)]
-padding = 5
-priceHistoryInDays = 1
-TickerPair = "XBTEUR"
+GraphBounds = [(0,52),(106,104)] # This defines the bounds for the graph // default: [(0,0),(212,104)]
+Padding = 5
+PriceHistoryInDays = 1
+PriceHistoryInterval = 60
+AssetPair = "XXBTZEUR"
 CurrencySymbol = "€"
 
 
 def GetPlotPoint(time,value):
-    plotPointX = int(round(((time - minTime) * deltaScreenX / deltaTime + graphBounds[0][0] + padding)))
-    plotPointY = int(round(((value - minValue) * deltaScreenY / deltaValue + graphBounds[0][1] + padding)))
+    plotPointX = int(round(((time - minTime) * deltaScreenX / deltaTime + GraphBounds[0][0] + Padding)))
+    plotPointY = int(round(((value - minValue) * deltaScreenY / deltaValue + GraphBounds[0][1] + Padding)))
 
-    # flip the Y value since InkyPHAT screen height is inverted
-    plotPointY = graphBounds[1][1] - plotPointY + graphBounds[0][1]
+    # flip the Y value since InkyPHAT screen y-axis is inverted
+    plotPointY = GraphBounds[1][1] - plotPointY + GraphBounds[0][1]
 
     return (plotPointX,plotPointY)
 
-def formatPrice(amount):
+def FormatPrice(amount):
     amount = float(amount)
     # Round price and convert to string
     amount = str(int(round(amount)))
@@ -38,21 +39,28 @@ def formatPrice(amount):
 
 
 # Get Current Price
-url = "https://api.kraken.com/0/public/Ticker?pair=" + TickerPair
+url = "https://api.kraken.com/0/public/Ticker?pair=" + AssetPair
 response = requests.get(url)
-currPrice = response.json()["result"]["XXBTZEUR"]["c"][0]
+currPrice = response.json()["result"][AssetPair]["c"][0]
+lowPrice = response.json()["result"][AssetPair]["l"][1]
+highPrice = response.json()["result"][AssetPair]["h"][1]
 
-currPrice = formatPrice(currPrice)
+# format prices
+currPrice = FormatPrice(currPrice)
+lowPrice = FormatPrice(lowPrice)
+highPrice = FormatPrice(highPrice)
+
+print("Price:    " + currPrice, "\n24H Low:  " + lowPrice, "\n24H High: " + highPrice)
 
 # Calculate timestamp for API call
 ts = time.time()
 #timeStamp = str(int(ts) - 86400) # subtract 24hrs from current timestamp
-timeStamp = str(int(ts) - 86400 * priceHistoryInDays) # subtract 7 days from current timestamp
+timeStamp = str(int(ts) - 86400 * PriceHistoryInDays) # subtract 7 days from current timestamp
 
 # Get historical price data
-url = "https://api.kraken.com/0/public/OHLC?pair=xbteur&interval=60&since=" + timeStamp
+url = "https://api.kraken.com/0/public/OHLC?pair=xbteur&interval=" + str(PriceHistoryInterval) + "&since=" + timeStamp
 response = requests.get(url)
-prices = response.json()["result"]["XXBTZEUR"]
+prices = response.json()["result"][AssetPair]
 
 rawData = []
 
@@ -77,8 +85,8 @@ for i in rawData:
         maxValue = i[1]
 
 # Calculate graph dimensions
-deltaScreenX = graphBounds[1][0] - graphBounds[0][0] - padding * 2
-deltaScreenY = graphBounds[1][1] - graphBounds[0][1] - padding * 2
+deltaScreenX = GraphBounds[1][0] - GraphBounds[0][0] - Padding * 2
+deltaScreenY = GraphBounds[1][1] - GraphBounds[0][1] - Padding * 2
 
 # Calculate time & value range
 deltaValue = maxValue - minValue
@@ -97,7 +105,7 @@ fontLarge = ImageFont.truetype(FredokaOne, 36)
 
 # Draw header
 message = "btc"
-draw.text((padding, 0), message, inky_display.RED, fontSmall)
+draw.text((Padding, 0), message, inky_display.RED, fontSmall)
 
 # Draw current price
 message = currPrice
@@ -107,30 +115,36 @@ y = (inky_display.HEIGHT / 4) - (h / 2)
 draw.text((x, y), message, inky_display.BLACK, fontLarge)
 
 #draw rectangle using graph bounds
-draw.rectangle(graphBounds, inky_display.RED, inky_display.BLACK)
+draw.rectangle(GraphBounds, inky_display.RED, inky_display.BLACK)
+
+print("Plotting Historical Price Data...")
 
 # Calculate plot points
 previousPoint = GetPlotPoint(rawData[0][0],rawData[0][1])
 for i in rawData:
         point = GetPlotPoint(i[0],i[1])
-        print(point)
+        print(i[0], i[1]," ==> ", point)
         draw.line((previousPoint,point),inky_display.WHITE, 2)
         previousPoint = point
 
 # Draw details rectangle
-draw.rectangle((106,52,212,104), inky_display.WHITE, inky_display.BLACK)
-draw.text((110, 52), "H: " + formatPrice(maxValue), inky_display.BLACK, fontMedium)
-draw.text((110, 82), "L: " + formatPrice(minValue), inky_display.BLACK, fontMedium)
+draw.rectangle((inky_display.WIDTH / 2,inky_display.HEIGHT / 2,inky_display.WIDTH,inky_display.HEIGHT), inky_display.WHITE, inky_display.BLACK)
+draw.text((inky_display.WIDTH / 2 + Padding, 55), "High:", inky_display.RED, fontSmall)
+draw.text((inky_display.WIDTH / 2 + Padding + 40, 65), highPrice, inky_display.BLACK, fontSmall)
+draw.text((inky_display.WIDTH / 2 + Padding, 80), "Low:", inky_display.RED, fontSmall)
+draw.text((inky_display.WIDTH / 2 + Padding + 40, 90), lowPrice, inky_display.BLACK, fontSmall)
 
 # Draw graph time range
-draw.text((padding, inky_display.HEIGHT / 2 + padding), str(priceHistoryInDays) + "D", inky_display.WHITE, fontSmall)
+draw.text((Padding, inky_display.HEIGHT / 2 + Padding), str(PriceHistoryInDays) + "D", inky_display.WHITE, fontSmall)
 
 # Draw current datetime
 now = datetime.now()
 dt_string = now.strftime("%d/%m/%Y %H:%M")
 w, h = fontSmall.getsize(dt_string)
-x = (inky_display.WIDTH) - w - padding
+x = (inky_display.WIDTH) - w - Padding
 draw.text((x, 0), dt_string, inky_display.RED, fontSmall)
+
+print("Drawing to screen...")
 
 # Push image to screen
 inky_display.set_image(img)
