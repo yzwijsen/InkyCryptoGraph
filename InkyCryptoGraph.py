@@ -1,6 +1,6 @@
 from inky import InkyPHAT
 from PIL import Image, ImageFont, ImageDraw
-from font_fredoka_one import FredokaOne
+from font_source_sans_pro import SourceSansProBold
 import time
 from datetime import datetime
 import requests
@@ -8,10 +8,12 @@ import requests
 # Config
 GraphBounds = [(0,52),(106,104)] # This defines the bounds for the graph // default: [(0,0),(212,104)]
 Padding = 5
-PriceHistoryInDays = 1
-PriceHistoryInterval = 60
+PriceHistoryRange = 1 # in days
+PriceHistoryInterval = 60 # in minutes
 AssetPair = "XXBTZEUR"
 CurrencySymbol = "€"
+CurrencyThousandsSeperator = " "
+FlipScreen = False
 
 
 def GetPlotPoint(time,value):
@@ -29,8 +31,8 @@ def FormatPrice(amount):
     amount = str(int(round(amount)))
 
     # Add space
-    spaceIndex = len(amount) - 3
-    amount = amount[:spaceIndex] + " " + amount[spaceIndex:]
+    separatorIndex = len(amount) - 3
+    amount = amount[:separatorIndex] + CurrencyThousandsSeperator + amount[separatorIndex:]
 
     # Add currency symbol
     amount = CurrencySymbol + " " + amount
@@ -42,39 +44,30 @@ def FormatPrice(amount):
 url = "https://api.kraken.com/0/public/Ticker?pair=" + AssetPair
 response = requests.get(url)
 currPrice = response.json()["result"][AssetPair]["c"][0]
-lowPrice = response.json()["result"][AssetPair]["l"][1]
-highPrice = response.json()["result"][AssetPair]["h"][1]
 
-# format prices
-currPrice = FormatPrice(currPrice)
-lowPrice = FormatPrice(lowPrice)
-highPrice = FormatPrice(highPrice)
-
-print("Price:    " + currPrice, "\n24H Low:  " + lowPrice, "\n24H High: " + highPrice)
 
 # Calculate timestamp for API call
 ts = time.time()
-#timeStamp = str(int(ts) - 86400) # subtract 24hrs from current timestamp
-timeStamp = str(int(ts) - 86400 * PriceHistoryInDays) # subtract 7 days from current timestamp
+timeStamp = str(int(ts) - 86400 * PriceHistoryRange) # subtract 7 days from current timestamp
 
 # Get historical price data
-url = "https://api.kraken.com/0/public/OHLC?pair=xbteur&interval=" + str(PriceHistoryInterval) + "&since=" + timeStamp
+url = "https://api.kraken.com/0/public/OHLC?pair=" + AssetPair + "&interval=" + str(PriceHistoryInterval) + "&since=" + timeStamp
 response = requests.get(url)
 prices = response.json()["result"][AssetPair]
 
-rawData = []
+historicalPriceData = []
 
 for price in prices:
-    rawData.append((int(price[0]),float(price[2]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
+    historicalPriceData.append((int(price[0]),float(price[2]),float(price[3]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
 
 # Set minmax variables to some initial value from the dataset so we have something to compare to
-minTime = rawData[0][0]
-maxTime = rawData[0][0]
-minValue = rawData[0][1]
-maxValue = rawData[0][1]
+minTime = historicalPriceData[0][0]
+maxTime = historicalPriceData[0][0]
+minValue = lowPrice = historicalPriceData[0][1]
+maxValue = historicalPriceData[0][1]
 
-# Calculate min and max time & value
-for i in rawData:
+# Calculate min and max values
+for i in historicalPriceData:
     if i[0] < minTime:
         minTime = i[0]
     if i[0] > maxTime:
@@ -83,6 +76,19 @@ for i in rawData:
         minValue = i[1]
     if i[1] > maxValue:
         maxValue = i[1]
+    # We need to calculate the low price separately since minValue is based on the market high instead of market low.
+    if i[2] < lowPrice:
+        lowPrice = i[2]
+
+# high price does not need to be calculated since it's the same as maxValue
+highPrice = maxValue
+
+# format prices
+currPrice = FormatPrice(currPrice)
+lowPrice = FormatPrice(lowPrice)
+highPrice = FormatPrice(maxValue)
+
+print("Price: " + currPrice, "\nLow:   " + lowPrice, "\nHigh:  " + highPrice)
 
 # Calculate graph dimensions
 deltaScreenX = GraphBounds[1][0] - GraphBounds[0][0] - Padding * 2
@@ -99,20 +105,18 @@ img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
 draw = ImageDraw.Draw(img)
 
 # Set default font
-fontSmall = ImageFont.truetype(FredokaOne, 12)
-fontMedium = ImageFont.truetype(FredokaOne, 16)
-fontLarge = ImageFont.truetype(FredokaOne, 36)
+fontSmall = ImageFont.truetype(SourceSansProBold, 12)
+fontMedium = ImageFont.truetype(SourceSansProBold, 16)
+fontLarge = ImageFont.truetype(SourceSansProBold, 36)
 
-# Draw header
-message = "btc"
-draw.text((Padding, 0), message, inky_display.RED, fontSmall)
+# Draw AssetPair
+draw.text((Padding, 0), AssetPair, inky_display.RED, fontSmall)
 
 # Draw current price
-message = currPrice
-w, h = fontLarge.getsize(message)
+w, h = fontLarge.getsize(currPrice)
 x = (inky_display.WIDTH / 2) - (w / 2)
 y = (inky_display.HEIGHT / 4) - (h / 2)
-draw.text((x, y), message, inky_display.BLACK, fontLarge)
+draw.text((x, y), currPrice, inky_display.BLACK, fontLarge)
 
 #draw rectangle using graph bounds
 draw.rectangle(GraphBounds, inky_display.RED, inky_display.BLACK)
@@ -120,11 +124,11 @@ draw.rectangle(GraphBounds, inky_display.RED, inky_display.BLACK)
 print("Plotting Historical Price Data...")
 
 # Calculate plot points
-previousPoint = GetPlotPoint(rawData[0][0],rawData[0][1])
-for i in rawData:
+previousPoint = GetPlotPoint(historicalPriceData[0][0],historicalPriceData[0][1])
+for i in historicalPriceData:
         point = GetPlotPoint(i[0],i[1])
         print(i[0], i[1]," ==> ", point)
-        draw.line((previousPoint,point),inky_display.WHITE, 2)
+        draw.line((previousPoint,point),inky_display.WHITE, 1)
         previousPoint = point
 
 # Draw details rectangle
@@ -135,7 +139,7 @@ draw.text((inky_display.WIDTH / 2 + Padding, 80), "Low:", inky_display.RED, font
 draw.text((inky_display.WIDTH / 2 + Padding + 40, 90), lowPrice, inky_display.BLACK, fontSmall)
 
 # Draw graph time range
-draw.text((Padding, inky_display.HEIGHT / 2 + Padding), str(PriceHistoryInDays) + "D", inky_display.WHITE, fontSmall)
+draw.text((Padding, inky_display.HEIGHT / 2 + Padding), str(PriceHistoryRange) + "D", inky_display.WHITE, fontSmall)
 
 # Draw current datetime
 now = datetime.now()
@@ -147,5 +151,8 @@ draw.text((x, 0), dt_string, inky_display.RED, fontSmall)
 print("Drawing to screen...")
 
 # Push image to screen
+if FlipScreen:
+    img = img.rotate(180)
+
 inky_display.set_image(img)
 inky_display.show()
