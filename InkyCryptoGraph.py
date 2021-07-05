@@ -10,7 +10,7 @@ import argparse
 DateFormat = "%d/%m/%Y %H:%M"
 CurrencyThousandsSeperator = " "
 Padding = 5 # padding between edge of container and content. used for graph bounds and graph, screen edge and text,...
-MaxAPIDataPoints = 720 # Max number of datapoints returned by the Kraken API OHLC call
+MaxAPIDataPoints = 720 # Max number of datapoints returned by the Kraken API OHLC call (https://stackoverflow.com/questions/48508150/kraken-api-ohlc-request-doesnt-honor-the-since-parameter)
 
 # Parse arguments
 parser = argparse.ArgumentParser(description="Crypto ticker with graph for InkyPHAT e-ink display hat. https://github.com/yzwijsen/InkyCryptoGraph")
