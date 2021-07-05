@@ -1,7 +1,5 @@
 from inky import InkyPHAT
 from PIL import Image, ImageFont, ImageDraw
-from font_fredoka_one import FredokaOne
-from font_hanken_grotesk import HankenGrotesk
 from font_source_sans_pro import SourceSansProBold, SourceSansPro
 import time
 from datetime import datetime
@@ -9,24 +7,30 @@ import requests
 import argparse
 
 # Config
+DateFormat = "%d/%m/%Y %H:%M"
 CurrencyThousandsSeperator = " "
 Padding = 5 # padding between edge of container and content. used for graph bounds and graph, screen edge and text,...
-PriceHistoryInterval = 60 # in minutes. (lower interval means more data points and thus a more detailed graph)
-GraphColors = (0,1) # (ForegroundColor, BackgroundColor) // 0 = white, 1 = black, 2 = red // Ignored when BlackAndWhite mode is set to True
-GraphLineThickness = 1 # in pixels
+MaxAPIDataPoints = 720 # Max number of datapoints returned by the Kraken API OHLC call
 
 # Parse arguments
-parser = argparse.ArgumentParser(description="Crypto ticker with graph for InkyPHAT e-ink display hat")
+parser = argparse.ArgumentParser(description="Crypto ticker with graph for InkyPHAT e-ink display hat. https://github.com/yzwijsen/InkyCryptoGraph")
 parser.add_argument("--assetpair", "-p", type=str, default="XXBTZUSD", help="Asset Pair to track. Ex: XXBTZUSD, XXBTZEUR,...")
 parser.add_argument("--currencysymbol", "-c", type=str, help="Currency symbol should be auto detected, but if not you can set it manually here")
-parser.add_argument("--range", "-r", type=int, default=1, help="How many days of historical price data to show in the graph")
+parser.add_argument("--range", "-r", type=int, default=1, help="How many days of historical price data to show in the graph. Maximum is 30 days")
+parser.add_argument("--holdings", "-ho", type=float, help="Set your holdings. When set the ticker will show the value of your holdings instead of crypto price")
+parser.add_argument("--backgroundcolor", "-bgc", type=int, default=0, help="Display background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--graphforegroundcolor", "-gfgc", type=int, default=0, help="Graph foreground color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--graphbackgroundcolor", "-gbgc", type=int, default=1, help="Graph background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--pricecolor", "-pc", type=int, default=1, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--textcolor", "-tc", type=int, default=2, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--bordercolor", "-bc", type=int, default=1, help="Border color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
+parser.add_argument("--linethickness", "-lt", type=int, default=1, help="Graph line thickness in pixels")
 parser.add_argument("--blackandwhite", "-bw", action="store_true", help="Only use black and white colors")
 parser.add_argument("--flipscreen","-f", action="store_true", help="Flips the screen 180°")
 parser.add_argument("--verbose", "-v", action="store_true", help="print verbose output")
 args = parser.parse_args()
 
-# Make sure assetpair is in upper case
-args.assetpair = str.upper(args.assetpair)
+#region Functions
 
 # takes a timestamp and price value and plots it within the graph bounds
 def GetPlotPoint(time,value):
@@ -53,14 +57,23 @@ def FormatPrice(amount):
 
     return amount
 
-def HighlightColor():
-    return inky_display.BLACK if args.blackandwhite else inky_display.RED
+def TextColor():
+    return inky_display.BLACK if args.blackandwhite else args.textcolor
+
+def PriceColor():
+    return inky_display.BLACK if args.blackandwhite else args.pricecolor
 
 def GraphFgColor():
-    return inky_display.WHITE if args.blackandwhite else GraphColors[0]
+    return inky_display.WHITE if args.blackandwhite else args.graphforegroundcolor
 
 def GraphBgColor():
-    return inky_display.BLACK if args.blackandwhite else GraphColors[1]
+    return inky_display.BLACK if args.blackandwhite else args.graphbackgroundcolor
+
+def BgColor():
+    return inky_display.WHITE if args.blackandwhite else args.backgroundcolor
+
+def BorderColor():
+    return inky_display.BLACK if args.blackandwhite else args.bordercolor
 
 def PrintVerbose(*messages):
     if args.verbose:
@@ -89,6 +102,30 @@ def GetCurrencySymbol(assetPair):
     else:
         return currency
 
+# gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
+def GetInterval(range, maxDataPoints):
+    intervalList = [5, 15, 30, 60, 240, 1440, 10080, 21600] # 1 is also a valid option but we're discarding it as it isn't even enough to get an entire day's worth of data
+    for interval in intervalList:
+        dataPoints = 1440 / interval * range
+        if dataPoints < maxDataPoints:
+                break
+    return interval
+
+#endregion
+
+
+# Make sure assetpair is in upper case
+args.assetpair = str.upper(args.assetpair)
+
+# Set price history interval so we don't exceed the max amount of data points returned by the Kraken api OHLC call
+priceHistoryInterval = GetInterval(args.range, MaxAPIDataPoints)
+
+# Set currency symbol
+if args.currencysymbol is None:
+    CurrencySymbol = GetCurrencySymbol(args.assetpair)
+else:
+    CurrencySymbol = args.currencysymbol
+
 # Print parameters
 PrintVerbose("\n#### Parameters ####")
 PrintVerbose("Asset Pair: " + args.assetpair)
@@ -97,25 +134,34 @@ PrintVerbose("B&W Mode: " + str(args.blackandwhite))
 PrintVerbose("Flip Screen: " + str(args.flipscreen))
 PrintVerbose("####################\n")
 
-# Set currency symbol
-if args.currencysymbol is None:
-    CurrencySymbol = GetCurrencySymbol(args.assetpair)
-else:
-    CurrencySymbol = args.currencysymbol
+PrintVerbose("Interval: " + str(priceHistoryInterval) + " (Data Points: " + str(1440 / priceHistoryInterval * args.range) + ")\n")
 
 # Initiate Inky display
 inky_display = InkyPHAT("red")
-inky_display.set_border(inky_display.BLACK)
+inky_display.set_border(inky_display.WHITE)
 img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
 draw = ImageDraw.Draw(img)
 
+# Quick hack
+# When drawing a rectangle accross the entire inkyphat screen the rectangle borders are missing on the screen's right and bottom side (at least on the inkyphat I have)
+# To fix this we make the screen a little smaller. Removing one pixel would probably be enough but then we'd have an uneven amount of pixels which would complicate the rest of the code
+dWidth = inky_display.WIDTH - 2
+dHeight = inky_display.HEIGHT - 2
+
+# Set display background color
+draw.rectangle((0,0,dWidth,dHeight / 2), BgColor(), BorderColor())
+
 # Calculate graph bounds
-GraphBounds = [(0,inky_display.HEIGHT / 2),(inky_display.WIDTH / 2,inky_display.HEIGHT)]
+GraphBounds = [(0,dHeight / 2),(dWidth / 2,dHeight)]
 
 # Get Current Price
 print("Getting price data from Kraken exchange...")
 url = "https://api.kraken.com/0/public/Ticker?pair=" + args.assetpair
-response = requests.get(url)
+try:
+    response = requests.get(url)
+except requests.exceptions.RequestException as e:
+    raise SystemExit(e)
+
 currPrice = response.json()["result"][args.assetpair]["c"][0]
 
 # Calculate timestamp for API call
@@ -123,8 +169,12 @@ ts = time.time()
 timeStamp = str(int(ts) - 86400 * args.range) # subtract x days from current timestamp
 
 # Get historical price data
-url = "https://api.kraken.com/0/public/OHLC?pair=" + args.assetpair + "&interval=" + str(PriceHistoryInterval) + "&since=" + timeStamp
-response = requests.get(url)
+url = "https://api.kraken.com/0/public/OHLC?pair=" + args.assetpair + "&interval=" + str(priceHistoryInterval) + "&since=" + timeStamp
+try:
+    response = requests.get(url)
+except requests.exceptions.RequestException as e:
+    raise SystemExit(e)
+    
 prices = response.json()["result"][args.assetpair] # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
 
 # Filter and convert price data
@@ -155,6 +205,12 @@ for i in historicalPriceData:
 # For the high price we want to use market high, so we just copy maxValue
 highPrice = maxValue
 
+# Calculate holdings value instead of price
+if args.holdings is not None:
+    currPrice = float(currPrice) * args.holdings
+    lowPrice = float(lowPrice) * args.holdings
+    highPrice = float(highPrice) * args.holdings
+
 # format prices
 currPrice = FormatPrice(currPrice)
 lowPrice = FormatPrice(lowPrice)
@@ -170,38 +226,38 @@ deltaScreenY = GraphBounds[1][1] - GraphBounds[0][1] - Padding * 2
 deltaValue = maxValue - minValue
 deltaTime = maxTime - minTime
 
-# Set default font
+# Setup fonts
 fontSmall = ImageFont.truetype(SourceSansPro, 12)
 fontMedium = ImageFont.truetype(SourceSansPro, 16)
 fontMediumBold = ImageFont.truetype(SourceSansProBold, 16)
 fontLargeBold = ImageFont.truetype(SourceSansProBold, 40)
 
 # Draw asset pair name
-draw.text((Padding, 0), args.assetpair, HighlightColor(), fontSmall)
+draw.text((Padding, 0), args.assetpair, TextColor(), fontSmall)
 
 # Draw current price
 w, h = fontLargeBold.getsize(currPrice)
-x = (inky_display.WIDTH / 2) - (w / 2)
-y = (inky_display.HEIGHT / 4) - (h / 2)
-draw.text((x, y), currPrice, inky_display.BLACK, fontLargeBold)
+x = (dWidth / 2) - (w / 2)
+y = (dHeight / 4) - (h / 2)
+draw.text((x, y), currPrice, PriceColor(), fontLargeBold)
 
 # Draw rectangle using graph bounds
-draw.rectangle(GraphBounds, GraphBgColor(), inky_display.BLACK)
+draw.rectangle(GraphBounds, GraphBgColor(), BorderColor())
 
 print("Plotting Historical Price Data...")
 
-# Calculate plot points
+# Draw graph lines
 previousPoint = GetPlotPoint(historicalPriceData[0][0],historicalPriceData[0][1])
 for i in historicalPriceData:
         point = GetPlotPoint(i[0],i[1])
         PrintVerbose(i[0], i[1]," ==> ", point)
-        draw.line((previousPoint,point),GraphFgColor(), GraphLineThickness)
+        draw.line((previousPoint,point),GraphFgColor(), args.linethickness)
         previousPoint = point
 
 PrintVerbose() # Prints an empty line for prettier verbose output formatting
 
 # Draw details rectangle
-draw.rectangle((inky_display.WIDTH / 2,inky_display.HEIGHT / 2,inky_display.WIDTH,inky_display.HEIGHT), inky_display.WHITE, inky_display.BLACK)
+draw.rectangle((dWidth / 2,dHeight / 2,dWidth,dHeight), BgColor(), BorderColor())
 
 # Set label text
 labelHighText = "High:"
@@ -213,32 +269,32 @@ labelLowWidth,labelLowHeight = fontMedium.getsize(labelLowText)
 highPriceWidth,highPriceHeight = fontMediumBold.getsize(highPrice)
 lowPriceWidth,lowPriceHeight = fontMediumBold.getsize(lowPrice)
 
-# Calculate label, top row and bottom row locations
-xLabel = (inky_display.WIDTH / 2) + Padding
-yTop = (inky_display.HEIGHT / 4 * 3) - (inky_display.HEIGHT / 8) - (labelHighHeight / 2)
-yBottom = (inky_display.HEIGHT / 4 * 4) - (inky_display.HEIGHT / 8) - (labelLowHeight / 2)
+# Calculate positions for labels, top row and bottom row
+xLabel = (dWidth / 2) + Padding
+yTop = (dHeight / 4 * 3) - (dHeight / 8) - (labelHighHeight / 2)
+yBottom = (dHeight / 4 * 4) - (dHeight / 8) - (labelLowHeight / 2)
 
 # Draw labels
-draw.text((xLabel, yTop), labelHighText, HighlightColor(), fontMedium)
-draw.text((xLabel, yBottom), labelLowText, HighlightColor(), fontMedium)
+draw.text((xLabel, yTop), labelHighText, TextColor(), fontMedium)
+draw.text((xLabel, yBottom), labelLowText, TextColor(), fontMedium)
 
 # Draw high price
-x = inky_display.WIDTH - highPriceWidth - Padding
-draw.text((x, yTop), highPrice, inky_display.BLACK, fontMediumBold)
+x = dWidth - highPriceWidth - Padding
+draw.text((x, yTop), highPrice, PriceColor(), fontMediumBold)
 
 # Draw low price
-x = inky_display.WIDTH - lowPriceWidth - Padding
-draw.text((x, yBottom), lowPrice, inky_display.BLACK, fontMediumBold)
+x = dWidth - lowPriceWidth - Padding
+draw.text((x, yBottom), lowPrice, PriceColor(), fontMediumBold)
 
 # Draw graph time range
-draw.text((Padding, inky_display.HEIGHT / 2), str(args.range) + "D", GraphFgColor(), fontSmall)
+draw.text((Padding, dHeight / 2), str(args.range) + "D", GraphFgColor(), fontSmall)
 
 # Draw current datetime
 now = datetime.now()
-dt_string = now.strftime("%d/%m/%Y %H:%M")
+dt_string = now.strftime(DateFormat)
 w, h = fontSmall.getsize(dt_string)
-x = (inky_display.WIDTH) - w - Padding
-draw.text((x, 0), dt_string, HighlightColor(), fontSmall)
+x = dWidth - w - Padding
+draw.text((x, 0), dt_string, TextColor(), fontSmall)
 
 # Flip img if needed
 if args.flipscreen:
