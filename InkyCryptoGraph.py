@@ -1,12 +1,16 @@
 from inky import InkyPHAT
 from PIL import Image, ImageFont, ImageDraw
 from font_source_sans_pro import SourceSansProBold, SourceSansPro
+from json.decoder import JSONDecodeError
 import time
 from datetime import datetime
 import requests
 import argparse
 
 # Config
+InkyDisplayType = "red"
+KrakenTickerUrl = "https://api.kraken.com/0/public/Ticker"
+KrakenOhlcUrl = "https://api.kraken.com/0/public/OHLC"
 DateFormat = "%d/%m/%Y %H:%M"
 CurrencyThousandsSeperator = " "
 Padding = 5 # padding between edge of container and content. used for graph bounds and graph, screen edge and text,...
@@ -31,6 +35,67 @@ parser.add_argument("--verbose", "-v", action="store_true", help="print verbose 
 args = parser.parse_args()
 
 #region Functions
+
+def GetCurrentPrice(pair):
+    url = KrakenTickerUrl + "?pair=" + pair
+    try:
+        response = requests.get(url)
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
+    
+    try:
+        result = response.json()["result"][pair]["c"][0]
+    except JSONDecodeError as e:
+        msg = "JSONDecodeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+    except TypeError as e:
+        msg = "TypeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+    except KeyError as e:
+        msg = "KeyError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+
+    return result
+
+def GetHistoricalPriceData(pair, range, interval):
+    # Calculate timestamp for API call
+    ts = time.time()
+    timeStamp = str(int(ts) - 86400 * range) # subtract x days from current timestamp
+
+    # Get OHLC data
+    url = KrakenOhlcUrl + "?pair=" + pair + "&interval=" + str(interval) + "&since=" + timeStamp
+    try:
+        response = requests.get(url)
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
+
+    try:
+        prices = response.json()["result"][pair] # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
+    except JSONDecodeError as e:
+        msg = "JSONDecodeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+    except TypeError as e:
+        msg = "TypeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+    except KeyError as e:
+        msg = "KeyError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
+        raise SystemExit(msg)
+    
+    # Generate a list with timestamp, high price and low price from OHLC data and convert to int/float
+    priceData = []
+    for price in prices:
+        priceData.append((int(price[0]),float(price[2]),float(price[3]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
+
+    return priceData
+
+# gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
+def GetInterval(range, maxDataPoints):
+    intervalList = [5, 15, 30, 60, 240, 1440, 10080, 21600] # 1 is also a valid option but we're discarding it as it isn't even enough to get an entire day's worth of data
+    for interval in intervalList:
+        dataPoints = 1440 / interval * range
+        if dataPoints < maxDataPoints:
+                break
+    return interval
 
 # takes a timestamp and price value and plots it within the graph bounds
 def GetPlotPoint(time,value):
@@ -101,18 +166,8 @@ def GetCurrencySymbol(assetPair):
         return "¥"
     else:
         return currency
-
-# gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
-def GetInterval(range, maxDataPoints):
-    intervalList = [5, 15, 30, 60, 240, 1440, 10080, 21600] # 1 is also a valid option but we're discarding it as it isn't even enough to get an entire day's worth of data
-    for interval in intervalList:
-        dataPoints = 1440 / interval * range
-        if dataPoints < maxDataPoints:
-                break
-    return interval
-
+    
 #endregion
-
 
 # Make sure assetpair is in upper case
 args.assetpair = str.upper(args.assetpair)
@@ -126,7 +181,7 @@ if args.currencysymbol is None:
 else:
     CurrencySymbol = args.currencysymbol
 
-# Print parameters
+# Print main parameters
 PrintVerbose("\n#### Parameters ####")
 PrintVerbose("Asset Pair: " + args.assetpair)
 PrintVerbose("Range: " + str(args.range) + " Day(s)")
@@ -136,8 +191,14 @@ PrintVerbose("####################\n")
 
 PrintVerbose("Interval: " + str(priceHistoryInterval) + " (Data Points: " + str(1440 / priceHistoryInterval * args.range) + ")\n")
 
+# Setup fonts
+fontSmall = ImageFont.truetype(SourceSansPro, 12)
+fontMedium = ImageFont.truetype(SourceSansPro, 16)
+fontMediumBold = ImageFont.truetype(SourceSansProBold, 16)
+fontLargeBold = ImageFont.truetype(SourceSansProBold, 40)
+
 # Initiate Inky display
-inky_display = InkyPHAT("red")
+inky_display = InkyPHAT(InkyDisplayType)
 inky_display.set_border(inky_display.WHITE)
 img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
 draw = ImageDraw.Draw(img)
@@ -148,39 +209,16 @@ draw = ImageDraw.Draw(img)
 dWidth = inky_display.WIDTH - 2
 dHeight = inky_display.HEIGHT - 2
 
-# Set display background color
-draw.rectangle((0,0,dWidth,dHeight / 2), BgColor(), BorderColor())
-
 # Calculate graph bounds
 GraphBounds = [(0,dHeight / 2),(dWidth / 2,dHeight)]
 
-# Get Current Price
 print("Getting price data from Kraken exchange...")
-url = "https://api.kraken.com/0/public/Ticker?pair=" + args.assetpair
-try:
-    response = requests.get(url)
-except requests.exceptions.RequestException as e:
-    raise SystemExit(e)
 
-currPrice = response.json()["result"][args.assetpair]["c"][0]
+# Get Current Price
+currPrice = GetCurrentPrice(args.assetpair)
 
-# Calculate timestamp for API call
-ts = time.time()
-timeStamp = str(int(ts) - 86400 * args.range) # subtract x days from current timestamp
-
-# Get historical price data
-url = "https://api.kraken.com/0/public/OHLC?pair=" + args.assetpair + "&interval=" + str(priceHistoryInterval) + "&since=" + timeStamp
-try:
-    response = requests.get(url)
-except requests.exceptions.RequestException as e:
-    raise SystemExit(e)
-    
-prices = response.json()["result"][args.assetpair] # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
-
-# Filter and convert price data
-historicalPriceData = []
-for price in prices:
-    historicalPriceData.append((int(price[0]),float(price[2]),float(price[3]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
+# Get Historical price data
+historicalPriceData = GetHistoricalPriceData(args.assetpair, args.range, priceHistoryInterval)
 
 # Set minmax variables to some initial value from the dataset so we have something to compare to
 minTime = historicalPriceData[0][0]
@@ -226,11 +264,8 @@ deltaScreenY = GraphBounds[1][1] - GraphBounds[0][1] - Padding * 2
 deltaValue = maxValue - minValue
 deltaTime = maxTime - minTime
 
-# Setup fonts
-fontSmall = ImageFont.truetype(SourceSansPro, 12)
-fontMedium = ImageFont.truetype(SourceSansPro, 16)
-fontMediumBold = ImageFont.truetype(SourceSansProBold, 16)
-fontLargeBold = ImageFont.truetype(SourceSansProBold, 40)
+# Draw ticker rectangle
+draw.rectangle((0,0,dWidth,dHeight / 2), BgColor(), BorderColor())
 
 # Draw asset pair name
 draw.text((Padding, 0), args.assetpair, TextColor(), fontSmall)
@@ -241,7 +276,7 @@ x = (dWidth / 2) - (w / 2)
 y = (dHeight / 4) - (h / 2)
 draw.text((x, y), currPrice, PriceColor(), fontLargeBold)
 
-# Draw rectangle using graph bounds
+# Draw graph rectangle
 draw.rectangle(GraphBounds, GraphBgColor(), BorderColor())
 
 print("Plotting Historical Price Data...")
