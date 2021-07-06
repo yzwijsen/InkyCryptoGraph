@@ -8,52 +8,49 @@ import requests
 import argparse
 
 # Config
-InkyDisplayType = "red"
+InkyDisplayColor = "red"
 KrakenTickerUrl = "https://api.kraken.com/0/public/Ticker"
 KrakenOhlcUrl = "https://api.kraken.com/0/public/OHLC"
-DateFormat = "%d/%m/%Y %H:%M"
+DateTimeFormat = "%d/%m/%Y %H:%M"
 CurrencyThousandsSeperator = " "
 Padding = 5 # padding between edge of container and content. used for graph bounds and graph, screen edge and text,...
 MaxAPIDataPoints = 720 # Max number of datapoints returned by the Kraken API OHLC call (https://stackoverflow.com/questions/48508150/kraken-api-ohlc-request-doesnt-honor-the-since-parameter)
 
-# Parse arguments
+# Script arguments
 parser = argparse.ArgumentParser(description="Crypto ticker with graph for InkyPHAT e-ink display hat. https://github.com/yzwijsen/InkyCryptoGraph")
-parser.add_argument("--assetpair", "-p", type=str, default="XXBTZUSD", help="Asset Pair to track. Ex: XXBTZUSD, XXBTZEUR,...")
-parser.add_argument("--currencysymbol", "-c", type=str, help="Currency symbol should be auto detected, but if not you can set it manually here")
-parser.add_argument("--range", "-r", type=int, default=1, help="How many days of historical price data to show in the graph. Maximum is 30 days")
-parser.add_argument("--holdings", "-ho", type=float, help="Set your holdings. When set the ticker will show the value of your holdings instead of crypto price")
-parser.add_argument("--backgroundcolor", "-bgc", type=int, default=0, help="Display background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--graphforegroundcolor", "-gfgc", type=int, default=0, help="Graph foreground color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--graphbackgroundcolor", "-gbgc", type=int, default=1, help="Graph background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--pricecolor", "-pc", type=int, default=1, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--textcolor", "-tc", type=int, default=2, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--bordercolor", "-bc", type=int, default=1, help="Border color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled")
-parser.add_argument("--linethickness", "-lt", type=int, default=1, help="Graph line thickness in pixels")
-parser.add_argument("--blackandwhite", "-bw", action="store_true", help="Only use black and white colors")
-parser.add_argument("--flipscreen","-f", action="store_true", help="Flips the screen 180°")
-parser.add_argument("--verbose", "-v", action="store_true", help="print verbose output")
+parser.add_argument("--assetpair", "-p", type=str, default="XXBTZUSD", help="Asset Pair to track. Ex: XXBTZUSD, XXBTZEUR, XETHZUSD,...")
+parser.add_argument("--currencysymbol", "-c", type=str, help="Currency symbol should be auto detected, if not you can set it manually.")
+parser.add_argument("--range", "-r", type=int, default=1, help="How many days of historical price data to show in the graph.")
+parser.add_argument("--holdings", "-ho", type=float, help="Set your holdings. When set the ticker will show the value of your holdings instead of current price.")
+parser.add_argument("--flipscreen","-f", action="store_true", help="Flips the screen 180°.")
+parser.add_argument("--verbose", "-v", action="store_true", help="print verbose output.")
+parser.add_argument("--blackandwhite", "-bw", action="store_true", help="Only use black and white colors.")
+parser.add_argument("--backgroundcolor", "-bgc", type=int, default=0, help="Display background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--graphforegroundcolor", "-gfgc", type=int, default=0, help="Graph foreground color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--graphbackgroundcolor", "-gbgc", type=int, default=1, help="Graph background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--pricecolor", "-pc", type=int, default=1, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--textcolor", "-tc", type=int, default=2, help="Price color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--bordercolor", "-bc", type=int, default=1, help="Border color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
+parser.add_argument("--linethickness", "-lt", type=int, default=1, help="Graph line thickness in pixels.")
 args = parser.parse_args()
 
 #region Functions
+
+def RaiseSystemExit(exDescription, exMessage):
+    msg = "Error: " + exDescription + " (" + str(exMessage) + ")\nExiting..."
+    raise SystemExit(msg)
 
 def GetCurrentPrice(pair):
     url = KrakenTickerUrl + "?pair=" + pair
     try:
         response = requests.get(url)
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
+    except Exception as e:
+        RaiseSystemExit("Kraken API not reachable. Make sure you are connected to the internet and that the Kraken API is up.",e)
     
     try:
         result = response.json()["result"][pair]["c"][0]
-    except JSONDecodeError as e:
-        msg = "JSONDecodeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
-    except TypeError as e:
-        msg = "TypeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
-    except KeyError as e:
-        msg = "KeyError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
+    except Exception as e:
+        RaiseSystemExit("Invalid or no JSON response received from Kraken API. Make sure you set a valid asset pair.",e)
 
     return result
 
@@ -66,20 +63,13 @@ def GetHistoricalPriceData(pair, range, interval):
     url = KrakenOhlcUrl + "?pair=" + pair + "&interval=" + str(interval) + "&since=" + timeStamp
     try:
         response = requests.get(url)
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
+    except Exception as e:
+        RaiseSystemExit("Kraken API not reachable. Make sure you are connected to the internet and that the Kraken API is up.",e)
 
     try:
         prices = response.json()["result"][pair] # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
-    except JSONDecodeError as e:
-        msg = "JSONDecodeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
-    except TypeError as e:
-        msg = "TypeError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
-    except KeyError as e:
-        msg = "KeyError (" + str(e) + ")\nMake sure you set a valid asset pair.\nExiting..."
-        raise SystemExit(msg)
+    except Exception as e:
+        RaiseSystemExit("Invalid or no JSON response received from Kraken API. Make sure you set a valid asset pair.",e)
     
     # Generate a list with timestamp, high price and low price from OHLC data and convert to int/float
     priceData = []
@@ -198,7 +188,7 @@ fontMediumBold = ImageFont.truetype(SourceSansProBold, 16)
 fontLargeBold = ImageFont.truetype(SourceSansProBold, 40)
 
 # Initiate Inky display
-inky_display = InkyPHAT(InkyDisplayType)
+inky_display = InkyPHAT(InkyDisplayColor)
 inky_display.set_border(inky_display.WHITE)
 img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
 draw = ImageDraw.Draw(img)
@@ -326,7 +316,7 @@ draw.text((Padding, dHeight / 2), str(args.range) + "D", GraphFgColor(), fontSma
 
 # Draw current datetime
 now = datetime.now()
-dt_string = now.strftime(DateFormat)
+dt_string = now.strftime(DateTimeFormat)
 w, h = fontSmall.getsize(dt_string)
 x = dWidth - w - Padding
 draw.text((x, 0), dt_string, TextColor(), fontSmall)
