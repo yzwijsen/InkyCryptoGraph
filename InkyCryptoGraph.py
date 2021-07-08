@@ -1,4 +1,4 @@
-from inky import InkyPHAT,InkyWHAT
+from inky import InkyPHAT, InkyWHAT
 from PIL import Image, ImageFont, ImageDraw
 from font_source_sans_pro import SourceSansPro, SourceSansProBold
 import time
@@ -185,11 +185,8 @@ font_medium = ImageFont.truetype(SourceSansPro, 16)
 font_medium_bold = ImageFont.truetype(SourceSansProBold, 16)
 font_large_bold = ImageFont.truetype(SourceSansProBold, 40)
 
-# Initiate Inky display
-if inky_display_type == 0:
-    inky_display = InkyPHAT(inky_display_color)
-else:
-    inky_display = InkyWHAT(inky_display_color)
+# Initialize Inky display
+inky_display = InkyPHAT(inky_display_color) if inky_display_type == 0 else InkyWHAT(inky_display_color)
 
 #inky_display.set_border(inky_display.WHITE)
 img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
@@ -316,7 +313,7 @@ draw.text((x, y_bottom), low_price, price_color(), font_medium_bold)
 draw.text((padding, display_height / 2), str(args.range) + "D", graph_foreground_color(), font_small)
 
 # Draw current datetime
-date_time = datetime.date_time()
+date_time = datetime.now()
 date_time_string = date_time.strftime(date_time_format)
 w, h = font_small.getsize(date_time_string)
 x = display_width - w - padding
