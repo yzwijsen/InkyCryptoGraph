@@ -1,6 +1,6 @@
 from inky import InkyPHAT,InkyWHAT
 from PIL import Image, ImageFont, ImageDraw
-from font_source_sans_pro import SourceSansProBold, SourceSansPro
+from font_source_sans_pro import SourceSansPro, SourceSansProBold
 import time
 from datetime import datetime
 import requests
@@ -86,14 +86,14 @@ def get_interval(range, max_datapoints):
     return interval
 
 # takes a timestamp and price value and plots it within the graph bounds
-def plot_point(time,value):
-    plotPointX = int(round(((time - min_time) * delta_screen_x / delta_time + graph_bounds[0][0] + padding)))
-    plotPointY = int(round(((value - min_value) * delta_screen_y / delta_value + graph_bounds[0][1] + padding)))
+def plot_graph_point(time,value):
+    plot_point_x = int(round(((time - min_time) * delta_screen_x / delta_time + graph_bounds[0][0] + padding)))
+    plot_point_y = int(round(((value - min_value) * delta_screen_y / delta_value + graph_bounds[0][1] + padding)))
 
     # flip the Y value since InkyPHAT screen y-axis is inverted
-    plotPointY = graph_bounds[1][1] - plotPointY + graph_bounds[0][1]
+    plot_point_y = graph_bounds[1][1] - plot_point_y + graph_bounds[0][1]
 
-    return (plotPointX,plotPointY)
+    return (plot_point_x,plot_point_y)
 
 # Returns rounded and formatted currency as string
 def format_price(amount):
@@ -130,15 +130,15 @@ def border_color():
 
 def print_verbose(*messages):
     if args.verbose:
-        finalMessage = ""
+        full_message = ""
         for message in messages:
-            finalMessage += str(message)
-            finalMessage += " "
-        print(finalMessage)
+            full_message += str(message)
+            full_message += " "
+        print(full_message)
 
 def get_currency_symbol(pair):
-    currencyIndex = len(pair) - 3
-    currency = pair[currencyIndex:]
+    currency_index = len(pair) - 3
+    currency = pair[currency_index:]
 
     if currency == "EUR":
         return "€"
@@ -273,9 +273,9 @@ draw.rectangle(graph_bounds, graph_background_color(), border_color())
 print("Plotting Historical Price Data...")
 
 # Draw graph lines
-previous_point = plot_point(historical_price_data[0][0],historical_price_data[0][1])
+previous_point = plot_graph_point(historical_price_data[0][0],historical_price_data[0][1])
 for i in historical_price_data:
-        point = plot_point(i[0],i[1])
+        point = plot_graph_point(i[0],i[1])
         print_verbose(i[0], i[1]," ==> ", point)
         draw.line((previous_point,point),graph_foreground_color(), args.linethickness)
         previous_point = point
@@ -316,11 +316,11 @@ draw.text((x, y_bottom), low_price, price_color(), font_medium_bold)
 draw.text((padding, display_height / 2), str(args.range) + "D", graph_foreground_color(), font_small)
 
 # Draw current datetime
-now = datetime.now()
-dt_string = now.strftime(date_time_format)
-w, h = font_small.getsize(dt_string)
+date_time = datetime.date_time()
+date_time_string = date_time.strftime(date_time_format)
+w, h = font_small.getsize(date_time_string)
 x = display_width - w - padding
-draw.text((x, 0), dt_string, text_color(), font_small)
+draw.text((x, 0), date_time_string, text_color(), font_small)
 
 # Flip img if needed
 if args.flipscreen:
