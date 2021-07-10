@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from inky import InkyPHAT, InkyWHAT
 from PIL import Image, ImageFont, ImageDraw
 from font_source_sans_pro import SourceSansPro, SourceSansProBold
@@ -45,11 +47,13 @@ def raise_system_exit(error_description, exception_details):
 def get_current_price(pair):
     url = kraken_ticker_url + "?pair=" + pair
     
+    # Get ticker data
     try:
         response = requests.get(url)
     except Exception as e:
         raise_system_exit("Kraken API not reachable. Make sure you are connected to the internet and that the Kraken API is up.",e)
     
+    # Read JSON response
     try:
         result = response.json()["result"][pair]["c"][0]
     except Exception as e:
@@ -69,6 +73,7 @@ def get_historical_price_data(pair, range, interval):
     except Exception as e:
         raise_system_exit("Kraken API not reachable. Make sure you are connected to the internet and that the Kraken API is up.",e)
 
+    # Read JSON response
     try:
         prices = response.json()["result"][pair] # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
     except Exception as e:
@@ -83,7 +88,7 @@ def get_historical_price_data(pair, range, interval):
 
 # gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
 def get_interval(range, max_datapoints):
-    interval_list = [5, 15, 30, 60, 240, 1440, 10080, 21600] # 1 is also a valid option but we're discarding it as it isn't even enough to get an entire day's worth of data
+    interval_list = [5, 15, 30, 60, 240, 1440, 10080, 21600] # 1 is also a valid option but we're discarding it as it won't even allow us to get 1 day worth of data
     for interval in interval_list:
         datapoints_count = 1440 / interval * range
         if datapoints_count < max_datapoints:
@@ -159,7 +164,7 @@ def get_currency_symbol(pair):
         return "¥"
     else:
         return currency
-    
+
 #endregion
 
 # Make sure assetpair is in upper case
