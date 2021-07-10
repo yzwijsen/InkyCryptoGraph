@@ -9,22 +9,24 @@ import argparse
 # Config
 inky_display_type = 0 # 0 for InkyPHAT, 1 for InkyWHAT
 inky_display_color = "red"
+
 kraken_ticker_url = "https://api.kraken.com/0/public/Ticker"
 kraken_ohlc_url = "https://api.kraken.com/0/public/OHLC"
+max_api_datapoints = 720 # Max number of datapoints returned by the Kraken API OHLC call (https://stackoverflow.com/questions/48508150/kraken-api-ohlc-request-doesnt-honor-the-since-parameter)
+
 date_time_format = "%d/%m/%Y %H:%M"
 currency_thousands_seperator = " "
 padding = 5 # padding between edge of container and content. used for graph bounds and graph, screen edge and text,...
-max_api_datapoints = 720 # Max number of datapoints returned by the Kraken API OHLC call (https://stackoverflow.com/questions/48508150/kraken-api-ohlc-request-doesnt-honor-the-since-parameter)
 
 # Arguments
 parser = argparse.ArgumentParser(description="Crypto ticker with graph for InkyPHAT e-ink display hat. https://github.com/yzwijsen/InkyCryptoGraph")
 parser.add_argument("--assetpair", "-p", type=str, default="XXBTZUSD", help="Asset Pair to track. Ex: XXBTZUSD, XXBTZEUR, XETHZUSD,...")
 parser.add_argument("--currencysymbol", "-c", type=str, help="Currency symbol should be auto detected, if not you can set it manually.")
 parser.add_argument("--range", "-r", type=int, default=1, help="How many days of historical price data to show in the graph.")
-parser.add_argument("--holdings", "-ho", type=float, help="Set your holdings. When set the ticker will show the value of your holdings instead of current price.")
+parser.add_argument("--holdings", "-ho", type=float, help="Set your holdings. When set the ticker will show the value of your holdings instead of the current crypto price.")
 parser.add_argument("--flipscreen","-f", action="store_true", help="Flips the screen 180°.")
 parser.add_argument("--verbose", "-v", action="store_true", help="print verbose output.")
-parser.add_argument("--blackandwhite", "-bw", action="store_true", help="Only use black and white colors.")
+parser.add_argument("--blackandwhite", "-bw", action="store_true", help="Only use black and white colors. This reduces the time needed to draw to the display.")
 parser.add_argument("--backgroundcolor", "-bgc", type=int, default=0, help="Display background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
 parser.add_argument("--graphforegroundcolor", "-gfgc", type=int, default=0, help="Graph foreground color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
 parser.add_argument("--graphbackgroundcolor", "-gbgc", type=int, default=1, help="Graph background color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.")
@@ -36,12 +38,13 @@ args = parser.parse_args()
 
 #region Functions
 
-def raise_system_exit(exception_description, exception_message):
-    msg = "Error: " + exception_description + " (" + str(exception_message) + ")\nExiting..."
+def raise_system_exit(error_description, exception_details):
+    msg = "Error: " + error_description + " (" + str(exception_details) + ")\nExiting..."
     raise SystemExit(msg)
 
 def get_current_price(pair):
     url = kraken_ticker_url + "?pair=" + pair
+    
     try:
         response = requests.get(url)
     except Exception as e:
@@ -51,6 +54,7 @@ def get_current_price(pair):
         result = response.json()["result"][pair]["c"][0]
     except Exception as e:
         raise_system_exit("Invalid or no JSON response received from Kraken API. Make sure you set a valid asset pair.",e)
+
     return result
 
 def get_historical_price_data(pair, range, interval):
@@ -74,6 +78,9 @@ def get_historical_price_data(pair, range, interval):
     price_data = []
     for price in prices:
         price_data.append((int(price[0]),float(price[2]),float(price[3]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
+
+    # Calcualte min/max data here to improve performance
+
     return price_data
 
 # gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
@@ -111,10 +118,10 @@ def format_price(amount):
     return amount
 
 def text_color():
-    return inky_display.BLACK if args.blackandwhite else args.textcolor
+    return inky_display.WHITE if args.blackandwhite else args.textcolor
 
 def price_color():
-    return inky_display.BLACK if args.blackandwhite else args.pricecolor
+    return inky_display.WHITE if args.blackandwhite else args.pricecolor
 
 def graph_foreground_color():
     return inky_display.WHITE if args.blackandwhite else args.graphforegroundcolor
@@ -123,10 +130,10 @@ def graph_background_color():
     return inky_display.BLACK if args.blackandwhite else args.graphbackgroundcolor
 
 def background_color():
-    return inky_display.WHITE if args.blackandwhite else args.backgroundcolor
+    return inky_display.BLACK if args.blackandwhite else args.backgroundcolor
 
 def border_color():
-    return inky_display.BLACK if args.blackandwhite else args.bordercolor
+    return inky_display.WHITE if args.blackandwhite else args.bordercolor
 
 def print_verbose(*messages):
     if args.verbose:
@@ -185,7 +192,7 @@ font_medium = ImageFont.truetype(SourceSansPro, 16)
 font_medium_bold = ImageFont.truetype(SourceSansProBold, 16)
 font_large_bold = ImageFont.truetype(SourceSansProBold, 40)
 
-# Initialize Inky display
+# Initiate Inky display
 inky_display = InkyPHAT(inky_display_color) if inky_display_type == 0 else InkyWHAT(inky_display_color)
 
 #inky_display.set_border(inky_display.WHITE)
@@ -209,10 +216,9 @@ current_price = get_current_price(args.assetpair)
 historical_price_data = get_historical_price_data(args.assetpair, args.range, price_history_interval)
 
 # Set minmax variables to some initial value from the dataset so we have something to compare to
-min_time = historical_price_data[0][0]
-max_time = historical_price_data[0][0]
-min_value = low_price = historical_price_data[0][1]
-max_value = historical_price_data[0][1]
+min_time = max_time = historical_price_data[0][0]
+min_value = max_value = historical_price_data[0][1]
+low_price = historical_price_data[0][2]
 
 # Calculate min and max values
 for i in historical_price_data:
