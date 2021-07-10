@@ -79,8 +79,6 @@ def get_historical_price_data(pair, range, interval):
     for price in prices:
         price_data.append((int(price[0]),float(price[2]),float(price[3]))) # 0 = time, 1 = open, 2 = high, 3 = low, 4 = close, 5 = vwap, 6 = volume, 7 = count
 
-    # Calcualte min/max data here to improve performance
-
     return price_data
 
 # gets the lowest possible interval to match the requested price history range without passing the max data points threshold of the Kraken API
