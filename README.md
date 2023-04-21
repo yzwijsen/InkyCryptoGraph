@@ -40,7 +40,7 @@ This will keep your screen in good condition and reduce artifacts / ghosting.
 To keep the screen updated you can setup a cron job to run the script every x minutes
 You can set this up by running `crontab -e` and adding an entry for the main script and, optionally, the cleaning script.
 
-Below is the default configuration. You can also find this in the **crontab*** file included in this repository.
+Below is the default configuration. You can also find this in the **crontab** file included in this repository.
 
 ```cron
 */5 8-23 * * * python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -f -r 1
