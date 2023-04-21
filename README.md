@@ -23,7 +23,36 @@ InkyCryptoGraph is a Python script that fetches cryptocurrency data from the Kra
 2. Install required libraries:
    - using pip: `pip install inky Pillow`
    - manually: `curl https://get.pimoroni.com/inky | bash` (Full instructions [here](https://learn.pimoroni.com/tutorial/sandyj/getting-started-with-inky-phat))
-3. Run the script: `python InkyCryptoGraph.py`
+3. Run the script: `python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -r 1`
+4. Setup Cron to run the script every x minutes
+
+## :recycle: Cleaning script
+
+I have included a modified version of the Pimoroni Inky cleaning script.
+This script should be ran once in a while to keep the screen in good condition. It does this by running through all the colors and overwriting the entire screen.
+This will keep your screen in good condition and reduce artifacts / ghosting.
+
+> **Note**
+> You can include the cleaning script in your crontab file to have it run automatically, just make sure that it doesn't overlap with the main script. Otherwise the screen will stop updating untill you restart the main script. A window of 15 minutes should be more than enough to run the cleaning script.
+
+## :clock7: Cron / Scheduling
+
+To keep the screen updated you can setup a cron job to run the script every x minutes
+You can set this up by running `crontab -e` and adding an entry for the main script and, optionally, the cleaning script.
+
+Below is the default configuration. You can also find this in the **crontab*** file included in this repository.
+
+```cron
+*/5 8-23 * * * python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -f -r 1
+*/5 0-2 * * * python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -f -bw -r 1
+*/30 3-7 * * * python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -f -bw -r 1
+45 6 * * * python3 /home/pi/InkyClean.py
+```
+
+This crontab file will run the script in color mode every 5 minutes from 8AM till 11PM.
+The rest of the time it will run in dark mode. We're also lowering the update time to every 30 minutes between 3AM and 7AM.
+Finally, we run the cleaning script once every day at 6:45 AM
+
 
 ## :gear: Parameters
 The script accepts various command line arguments to customize the output:
