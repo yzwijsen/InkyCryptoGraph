@@ -1,0 +1,2 @@
+# Exclude the .github folder from being added to the release
+.github/** export-ignore
