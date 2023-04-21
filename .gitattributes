@@ -1,14 +1,2 @@
-# .gitattributes
-
-# Set default behavior to export-ignore for all files and folders
-/* export-ignore
-
-# Exclude the src directory and all its contents from export-ignore
-/src !export-ignore
-/src/** !export-ignore
-
-# Exclude the InkyCryptoGraph.py file from export-ignore
-/InkyCryptoGraph.py !export-ignore
-
-# Exclude the .github folder from export-ignore
-#.github/** export-ignore
+# Exclude the .github folder from being added to the release
+.github/** export-ignore
