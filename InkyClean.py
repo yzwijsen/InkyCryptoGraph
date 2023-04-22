@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from inky import InkyPHAT
-from PIL import Image, ImageFont, ImageDraw
+from PIL import Image
 import time
 
 cycles = 3
-
 
 # Initiate Inky display
 inky_display = InkyPHAT("red")
@@ -17,7 +16,6 @@ img = Image.new("P", (inky_display.WIDTH, inky_display.HEIGHT))
 # Set colours
 colours = (inky_display.RED, inky_display.BLACK, inky_display.WHITE)
 colour_names = (inky_display.colour, "black", "white")
-
 
 # Loop through the specified number of cycles and completely
 # fill the display with each colour in turn.
