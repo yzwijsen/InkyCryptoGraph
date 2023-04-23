@@ -33,6 +33,7 @@ This will keep your screen in good condition and reduce artifacts / ghosting.
 
 > **Note**
 > You can include the cleaning script in your crontab file to have it run automatically, just make sure that it doesn't overlap with the main script. Otherwise the screen will stop updating untill you restart the main script. A window of 15 minutes should be more than enough to run the cleaning script.
+> 
 > The included crontab example already has an entry for this cleaning script.
 
 ## :clock7: Cron / Scheduling
