@@ -14,9 +14,8 @@ InkyCryptoGraph is a Python script that fetches cryptocurrency data from the Kra
 ## :wrench: Pre-requisites
 * [Raspberry Pi](https://www.raspberrypi.org/products/) with [InkyPHAT](https://shop.pimoroni.com/products/inky-phat) or [InkyWHAT](https://shop.pimoroni.com/products/inky-what) e-ink display hat
 * Python 3.x
-* [inky](https://github.com/pimoroni/inky) library by Pimoroni
+* [Inky](https://github.com/pimoroni/inky) library by Pimoroni
 * [Pillow](https://pillow.readthedocs.io/en/stable/) library
-* Internet connection for fetching price data
 
 ## :inbox_tray: Installation
 1. Clone this repository: `git clone https://github.com/yzwijsen/InkyCryptoGraph.git`
@@ -34,13 +33,14 @@ This will keep your screen in good condition and reduce artifacts / ghosting.
 
 > **Note**
 > You can include the cleaning script in your crontab file to have it run automatically, just make sure that it doesn't overlap with the main script. Otherwise the screen will stop updating untill you restart the main script. A window of 15 minutes should be more than enough to run the cleaning script.
+> The included crontab example already has an entry for this cleaning script.
 
 ## :clock7: Cron / Scheduling
 
 To keep the screen updated you can setup a cron job to run the script every x minutes
 You can set this up by running `crontab -e` and adding an entry for the main script and, optionally, the cleaning script.
 
-Below is the default configuration. You can also find this in the **crontab** file included in this repository.
+Below is an example configuration. You can also find this in the **crontab** file included in this repository.
 
 ```cron
 */5 8-23 * * * python3 /home/pi/InkyCryptoGraph.py -p XXBTZEUR -f -r 1
@@ -52,7 +52,6 @@ Below is the default configuration. You can also find this in the **crontab** fi
 This crontab file will run the script in color mode every 5 minutes from 8AM till 11PM.
 The rest of the time it will run in dark mode. We're also lowering the update time to every 30 minutes between 3AM and 7AM.
 Finally, we run the cleaning script once every day at 6:45 AM
-
 
 ## :gear: Parameters
 The script accepts various command line arguments to customize the output:
@@ -73,5 +72,4 @@ The script accepts various command line arguments to customize the output:
 | `--textcolor` `-tc`   | Price color. 0 = white, 1 = black, 2.|
 | `--bordercolor` `-pc`  | Border color. 0 = white, 1 = black, 2 = red/yellow. Ignored when BlackAndWhite mode is enabled.|
 | `--linethickness` `-tc`   | Graph line thickness in pixels.|
-
 
