@@ -30,7 +30,7 @@ for i in range(cycles):
                 img.putpixel((x, y), c)
         inky_display.set_image(img)
         inky_display.show()
-        time.sleep(1)
+        time.sleep(5)
     print("\n")
 
 print("Cleaning complete!")
