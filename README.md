@@ -1,5 +1,6 @@
 # InkyCryptoGraph :chart_with_upwards_trend::money_with_wings:
 
+[![GitHub Super-Linter](https://github.com/yzwijsen/InkyCryptoGraph/workflows/Lint%20Code%20Base/badge.svg)](https://github.com/marketplace/actions/super-linter)
 [![GitHub license](https://img.shields.io/github/license/yzwijsen/InkyCryptoGraph)](https://github.com/yzwijsen/InkyCryptoGraph/blob/main/LICENSE)
 
 Customizable crypto ticker and graph for Pimoroni InkyPHAT e-ink display hat.
