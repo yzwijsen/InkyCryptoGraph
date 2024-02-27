@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/yzwijsen/InkyCryptoGraph/compare/v1.1.1...v1.2.0) (2023-04-25)
+
+
+### Features
+
+* increase cleaning script sleep time ([#12](https://github.com/yzwijsen/InkyCryptoGraph/issues/12)) ([05effd0](https://github.com/yzwijsen/InkyCryptoGraph/commit/05effd0fd6e249a0053ff8d74e6e6ea6e10728b1))
+
 ## [1.1.1](https://github.com/yzwijsen/InkyCryptoGraph/compare/v1.1.0...v1.1.1) (2023-04-21)
 
 
